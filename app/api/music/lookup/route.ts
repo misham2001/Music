@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { saavnLookup } from '@/lib/music'
+import { saavnLookup, decryptUrl, getHighResImage } from '@/lib/music'
 
 export async function GET(req: Request) {
     try {
@@ -18,83 +18,82 @@ export async function GET(req: Request) {
         }
         
         const saavnType = typeMap[entityArg] || 'songs'
-        const data = await saavnLookup(id, saavnType)
+        let data = await saavnLookup(id, saavnType)
         
         if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-        const item = Array.isArray(data) ? data[0] : data
-        const itemImages = Array.isArray(item.image) ? item.image : []
-        const image = itemImages[itemImages.length - 1]?.link || itemImages[0]?.link || item.image || ''
+        // song.getDetails returns data inside an object keyed by ID
+        if (saavnType === 'songs' && data[id]) {
+            data = data[id];
+        }
 
-        const artistsDisplay = Array.isArray(item.primaryArtists)
-            ? item.primaryArtists.map((a: any) => a.name).join(', ')
-            : (typeof item.primaryArtists === 'string' ? item.primaryArtists : 'Unknown')
+        const item = Array.isArray(data) ? data[0] : data
+        const image = getHighResImage(item.image || '')
+
+        const artistsDisplay = item.primary_artists || 'Unknown'
 
         if (saavnType === 'albums') {
             const tracks = (item.songs || []).map((song: any) => {
-                const streams = song.downloadUrl || []
-                const songArtists = Array.isArray(song.primaryArtists)
-                    ? song.primaryArtists.map((a: any) => a.name).join(', ')
-                    : (typeof song.primaryArtists === 'string' ? song.primaryArtists : artistsDisplay)
+                const songArtists = song.primary_artists || artistsDisplay
+                const stream = song.encrypted_media_url ? decryptUrl(song.encrypted_media_url) : ''
 
                 return {
                     id: song.id.toString(),
-                    name: song.name,
+                    name: song.song || song.name || '',
                     artists: [{ name: songArtists }],
                     album: {
-                        name: item.name,
+                        name: item.title || item.name || '',
                         images: [{ url: image }]
                     },
-                    preview_url: streams[streams.length - 1]?.link || streams[0]?.link || '',
-                    duration_ms: parseInt(song.duration) * 1000,
+                    preview_url: stream,
+                    duration_ms: parseInt(song.duration || '0') * 1000,
                     type: 'track'
                 }
             })
 
-            const primaryArtistId = Array.isArray(item.primaryArtists) 
-                ? item.primaryArtists[0]?.id 
-                : (item.primaryArtistsId?.split(',')[0]?.trim() || '')
+            const primaryArtistId = item.primary_artists_id?.split(',')[0]?.trim() || ''
 
             return NextResponse.json({
-                id: item.id.toString(),
-                name: item.name,
+                id: (item.albumid || item.id || '').toString(),
+                name: item.title || item.name || '',
                 artist: artistsDisplay,
                 artistId: primaryArtistId,
                 image,
                 tracks: { items: tracks },
-                release_date: item.year || item.releaseDate
+                release_date: item.year || item.release_date
             })
         }
 
         if (saavnType === 'artists') {
             return NextResponse.json({
-                id: item.id.toString(),
+                id: (item.artistid || item.id || '').toString(),
                 name: item.name,
                 image,
                 type: 'artist',
-                followerCount: item.followerCount,
-                isVerified: item.isVerified
+                followerCount: item.follower_count,
+                isVerified: item.is_verified
             })
         }
 
         // Single track lookup
-        const streams = item.downloadUrl || []
+        const stream = item.encrypted_media_url ? decryptUrl(item.encrypted_media_url) : ''
+        
         return NextResponse.json({
-            id: item.id.toString(),
-            name: item.name,
+            id: (item.id || '').toString(),
+            name: item.song || item.name || '',
             artists: [{ name: artistsDisplay }],
-            artistId: Array.isArray(item.primaryArtists) ? item.primaryArtists[0]?.id : (item.primaryArtistsId || ''),
+            artistId: item.primary_artists_id?.split(',')[0]?.trim() || '',
             album: {
-                name: item.album?.name || '',
+                name: item.album || '',
                 images: [{ url: image }]
             },
-            preview_url: streams[streams.length - 1]?.link || streams[0]?.link || '',
-            duration_ms: parseInt(item.duration) * 1000,
+            preview_url: stream,
+            duration_ms: parseInt(item.duration || '0') * 1000,
             type: 'track'
         })
 
     } catch (error: any) {
-        console.error('JioSaavn Lookup Proxy Error:', error)
+        console.error('JioSaavn Lookup API Error:', error)
         return NextResponse.json({ error: 'Failed to lookup music' }, { status: 500 })
     }
 }

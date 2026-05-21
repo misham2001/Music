@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { saavnSearch } from '@/lib/music'
+import { saavnSearch, decryptUrl, getHighResImage } from '@/lib/music'
 
 export async function GET(req: Request) {
     try {
@@ -21,27 +21,26 @@ export async function GET(req: Request) {
 
         const data = await saavnSearch(term, saavnType, limit)
         const results = (data.results || []).map((item: any) => {
-            // General normalization
-            const id = item.id.toString()
-            const name = item.name
-            const image = item.image?.[item.image.length - 1]?.link || item.image?.[0]?.link || ''
+            const image = getHighResImage(item.image || '')
             
             if (saavnType === 'albums') {
-                const artists = Array.isArray(item.primaryArtists) 
-                    ? item.primaryArtists.map((a: any) => a.name).join(', ')
-                    : item.primaryArtists || 'Various Artists'
+                const id = (item.albumid || item.id || '').toString()
+                const name = item.title || item.name || ''
+                const artist = item.music || item.primary_artists || 'Various Artists'
                 
                 return {
                     id,
                     name,
-                    artist: artists,
-                    artistId: Array.isArray(item.primaryArtists) ? item.primaryArtists[0]?.id : (item.primaryArtistsId || ''),
+                    artist,
+                    artistId: '', // Skipping for simplicity unless needed
                     image,
                     type: 'album'
                 }
             }
 
             if (saavnType === 'artists') {
+                const id = (item.artistid || item.id || '').toString()
+                const name = item.title || item.name || ''
                 return {
                     id,
                     name,
@@ -51,31 +50,30 @@ export async function GET(req: Request) {
             }
             
             // For songs/tracks
-            const streams = item.downloadUrl || []
-            const stream = streams[streams.length - 1]?.link || streams[0]?.link || ''
+            const id = (item.id || '').toString()
+            const name = item.song || item.title || item.name || ''
+            const stream = item.encrypted_media_url ? decryptUrl(item.encrypted_media_url) : ''
             
-            const artistsDisplay = Array.isArray(item.primaryArtists)
-                ? item.primaryArtists.map((a: any) => a.name).join(', ')
-                : item.primaryArtists || 'Unknown'
+            const artistsDisplay = item.primary_artists || 'Unknown'
             
             return {
                 id,
                 name,
                 artists: [{ name: artistsDisplay }],
-                artistId: Array.isArray(item.primaryArtists) ? item.primaryArtists[0]?.id : (item.primaryArtistsId || ''),
+                artistId: item.primary_artists_id?.split(',')[0]?.trim() || '',
                 album: {
-                    name: item.album?.name || '',
+                    name: item.album || '',
                     images: [{ url: image }]
                 },
                 preview_url: stream,
-                duration_ms: parseInt(item.duration) * 1000,
+                duration_ms: parseInt(item.duration || '0') * 1000,
                 type: 'track'
             }
         })
 
         return NextResponse.json({ results })
     } catch (error: any) {
-        console.error('JioSaavn Search Proxy Error:', error)
+        console.error('JioSaavn Search API Error:', error)
         return NextResponse.json({ error: 'Failed to search music' }, { status: 500 })
     }
 }
