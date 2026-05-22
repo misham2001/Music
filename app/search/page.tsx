@@ -3,8 +3,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import AlbumCard from '@/components/cards/album-card'
+import { Suspense } from 'react'
 
-export default function SearchPage() {
+function SearchContent() {
     const searchParams = useSearchParams()
     const debouncedQuery = searchParams.get('q') || ''
 
@@ -82,5 +83,13 @@ export default function SearchPage() {
                 </div>
             )}
         </div>
+    )
+}
+
+export default function SearchPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading search...</div>}>
+            <SearchContent />
+        </Suspense>
     )
 }

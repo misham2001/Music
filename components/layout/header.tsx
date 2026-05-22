@@ -2,9 +2,9 @@
 
 import { Search, Settings, Bell, X } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 
-export default function Header() {
+function HeaderContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [query, setQuery] = useState(searchParams.get('q') || '')
@@ -57,5 +57,13 @@ export default function Header() {
                 </div>
             </div>
         </header>
+    )
+}
+
+export default function Header() {
+    return (
+        <Suspense fallback={<header className="flex items-center justify-between py-2 md:py-4 px-1 md:px-2 mb-4 md:mb-8 gap-4 h-[60px] md:h-[76px]" />}>
+            <HeaderContent />
+        </Suspense>
     )
 }
