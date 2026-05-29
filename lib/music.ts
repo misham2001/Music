@@ -4,6 +4,14 @@ import CryptoJS from 'crypto-js';
 
 const JIOSAAVN_BASE = 'https://www.jiosaavn.com/api.php';
 
+const BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.jiosaavn.com/',
+    'Origin': 'https://www.jiosaavn.com'
+};
+
 export function decryptUrl(url: string): string {
     if (!url) return '';
     try {
@@ -35,7 +43,10 @@ export async function saavnSearch(query: string, type: 'songs' | 'albums' | 'art
     else if (type === 'playlists') callEndpoint = 'search.getPlaylistResults';
     else if (type === 'artists') callEndpoint = 'search.getArtistResults';
 
-    const res = await fetch(`${JIOSAAVN_BASE}?__call=${callEndpoint}&q=${encodeURIComponent(query)}&n=${limit}&p=1&_format=json&_marker=0&cc=in`, { cache: 'no-store' });
+    const res = await fetch(`${JIOSAAVN_BASE}?__call=${callEndpoint}&q=${encodeURIComponent(query)}&n=${limit}&p=1&_format=json&_marker=0&cc=in`, { 
+        cache: 'no-store',
+        headers: BROWSER_HEADERS 
+    });
     if (!res.ok) throw new Error(`JioSaavn API error: ${res.status}`);
     const data = await res.json();
     return data;
@@ -53,7 +64,10 @@ export async function saavnLookup(id: string, type: 'songs' | 'albums' | 'artist
 
     if (!url) throw new Error(`Lookup type ${type} not supported yet`);
 
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url, { 
+        cache: 'no-store',
+        headers: BROWSER_HEADERS 
+    });
     if (!res.ok) throw new Error(`JioSaavn API error: ${res.status}`);
     const data = await res.json();
     return data;
